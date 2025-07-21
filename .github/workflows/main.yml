@@ -14,7 +14,12 @@ jobs:
         uses: actions/checkout@v4
       - name: Install RGBDS
         run: |
-          brew install --HEAD rgbds
+          wget https://github.com/gbdev/rgbds/releases/latest/download/rgbds-linux-x86_64.tar.xz
+          mkdir rgbds
+          tar -xf rgbds-linux-x86_64.tar.xz -C rgbds
+          rm rgbds-linux-x86_64.tar.xz
+          cd rgbds
+          sudo ./install.sh
       - name: Build ROMs
         run: |
           make
