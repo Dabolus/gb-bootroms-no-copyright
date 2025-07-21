@@ -1,0 +1,61 @@
+name: Build Bootstrap ROMs
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+jobs:
+  build-roms:
+    name: Build ROMs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install RGBDS
+        run: |
+          wget https://github.com/gbdev/rgbds/releases/latest/download/rgbds-linux-x86_64.tar.xz
+          mkdir rgbds
+          tar -xf rgbds-linux-x86_64.tar.xz -C rgbds
+          rm rgbds-linux-x86_64.tar.xz
+          cd rgbds
+          ./install.sh
+      - name: Build ROMs
+        run: |
+          make
+      - name: Upload ROMs to GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bootstrap ROMs
+          path: bin
+      - name: Generate pre-release tag
+        id: tag
+        # Only publish pre-release if the CI is running
+        # for a push of a branch, not for a tag
+        if: startsWith(github.ref, 'refs/heads/')
+        run: |
+          echo "::set-output name=prerelease_id::$(date +"%Y-%m-%dT%H%M")"
+      - name: Generate release notes
+        id: notes
+        run: |
+          git fetch --unshallow
+          latest_tag=$(git describe --tags --abbrev=0)
+          echo "::set-output name=latest_tag::$latest_tag"
+          echo "::set-output name=release_notes::$(git --no-pager log $latest_tag..HEAD --oneline --no-merges --pretty=format:'* %s in commit %h')"
+      - name: Publish pre-release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Only publish pre-release if the CI is running for a push of a branch and not for a tag
+        if: startsWith(github.ref, 'refs/heads/')
+        with:
+          name: 'Nightly ${{ steps.tag.outputs.prerelease_id }}'
+          tag_name: 'nightly-${{ steps.tag.outputs.prerelease_id }}'
+          body: |
+            ## What's Changed
+            ${{ steps.notes.outputs.release_notes }}
+
+            **Full Changelog**: https://github.com/Dabolus/gb-bootroms-no-copyright/compare/${{ steps.notes.outputs.latest_tag }}...nightly-${{ steps.tag.outputs.prerelease_id }}
+          prerelease: true
+          files: |
+            bin/dmg.bin
